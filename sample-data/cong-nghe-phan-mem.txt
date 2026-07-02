@@ -1,0 +1,7 @@
+Công nghệ phần mềm là ngành nghiên cứu và áp dụng các phương pháp, quy trình, công cụ để phát triển và bảo trì phần mềm. Một hệ thống phần mềm tốt cần đáp ứng đúng yêu cầu người dùng, dễ bảo trì, dễ mở rộng và có độ tin cậy cao.
+
+Quy trình phát triển phần mềm thường gồm các giai đoạn: khảo sát yêu cầu, phân tích hệ thống, thiết kế, lập trình, kiểm thử, triển khai và bảo trì. Trong đó, phân tích yêu cầu giúp xác định hệ thống cần làm gì, còn thiết kế hệ thống mô tả cách hệ thống được xây dựng.
+
+Use case là kỹ thuật dùng để mô tả sự tương tác giữa tác nhân và hệ thống nhằm đạt được một mục tiêu cụ thể. Actor là người dùng hoặc hệ thống bên ngoài có tương tác với hệ thống đang xét. Activity diagram mô tả luồng hoạt động, sequence diagram mô tả sự trao đổi thông điệp giữa các đối tượng theo thời gian.
+
+Kiểm thử phần mềm là quá trình phát hiện lỗi và đánh giá chất lượng hệ thống. Một số hình thức kiểm thử phổ biến gồm kiểm thử đơn vị, kiểm thử tích hợp, kiểm thử hệ thống và kiểm thử chấp nhận. Việc kiểm thử giúp đảm bảo phần mềm hoạt động đúng theo yêu cầu đã đặt ra.
