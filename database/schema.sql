@@ -8,8 +8,11 @@ create table if not exists users (
   full_name text not null,
   email text unique not null,
   password_hash text not null,
+  role text not null default 'user' check (role in ('user', 'admin')),
   created_at timestamp with time zone default now()
 );
+
+alter table users add column if not exists role text not null default 'user';
 
 create table if not exists subjects (
   id uuid primary key default uuid_generate_v4(),
@@ -72,9 +75,49 @@ create table if not exists quizzes (
   created_at timestamp with time zone default now()
 );
 
+create table if not exists quiz_attempts (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid not null references users(id) on delete cascade,
+  document_id uuid not null references documents(id) on delete cascade,
+  total_questions integer not null default 0,
+  correct_count integer not null default 0,
+  score numeric(5,2) not null default 0,
+  answers jsonb not null default '{}'::jsonb,
+  created_at timestamp with time zone default now()
+);
+
+create table if not exists flashcard_reviews (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid not null references users(id) on delete cascade,
+  flashcard_id uuid not null references flashcards(id) on delete cascade,
+  document_id uuid not null references documents(id) on delete cascade,
+  rating text not null check (rating in ('easy', 'hard', 'forgot')),
+  reviewed_at timestamp with time zone default now()
+);
+
+create table if not exists document_chats (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid not null references users(id) on delete cascade,
+  document_id uuid not null references documents(id) on delete cascade,
+  question text not null,
+  answer text not null,
+  created_at timestamp with time zone default now()
+);
+
+create table if not exists study_plans (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid not null references users(id) on delete cascade,
+  content text not null,
+  created_at timestamp with time zone default now()
+);
+
 create index if not exists idx_subjects_user_id on subjects(user_id);
 create index if not exists idx_tasks_user_id on tasks(user_id);
 create index if not exists idx_documents_user_id on documents(user_id);
 create index if not exists idx_summaries_document_id on summaries(document_id);
 create index if not exists idx_flashcards_document_id on flashcards(document_id);
 create index if not exists idx_quizzes_document_id on quizzes(document_id);
+create index if not exists idx_quiz_attempts_user_id on quiz_attempts(user_id);
+create index if not exists idx_flashcard_reviews_user_id on flashcard_reviews(user_id);
+create index if not exists idx_document_chats_document_id on document_chats(document_id);
+create index if not exists idx_study_plans_user_id on study_plans(user_id);
