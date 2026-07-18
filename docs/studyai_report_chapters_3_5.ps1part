@@ -1,0 +1,220 @@
+  Add-Heading "CHƯƠNG 3. PHÂN TÍCH VÀ THIẾT KẾ HỆ THỐNG" 1
+  Add-Heading "3.1. Khảo sát và xác định yêu cầu" 2
+  Add-Body "StudyAI được xây dựng cho người học cần quản lý đồng thời môn học, nhiệm vụ, lịch học và tài liệu cá nhân. Qua khảo sát quy trình sử dụng, dữ liệu thường nằm rải rác ở nhiều thư mục; người học phải tự đọc toàn bộ tài liệu để tóm tắt, tạo câu hỏi ôn tập và tìm lại kiến thức. Các chatbot tổng quát hỗ trợ diễn đạt nhanh nhưng không mặc nhiên truy cập được kho tài liệu riêng, do đó câu trả lời khó kiểm chứng nếu không gắn với nguồn cụ thể."
+  Add-Body "Từ vấn đề trên, hệ thống cần cung cấp một không gian làm việc thống nhất. Người dùng đăng ký hoặc đăng nhập, tạo môn học, quản lý nhiệm vụ, tải tài liệu lên kho riêng, lập chỉ mục nội dung và sử dụng AI để tóm tắt, tạo flashcard, quiz hoặc hỏi đáp. Mọi thao tác dữ liệu phải gắn với định danh người dùng và backend phải kiểm tra quyền sở hữu trước khi đọc, sửa, xóa hay phát liên kết tải file."
+
+  Add-Heading "3.1.1. Yêu cầu chức năng" 3
+  Add-NoIndent "Bảng 3.1. Các yêu cầu chức năng chính" 1 $true 13
+  $functionalRows = @(
+    @("F01", "Tài khoản", "Đăng ký, đăng nhập, lấy hồ sơ và đăng xuất phía client"),
+    @("F02", "Môn học", "Tạo, xem, cập nhật và xóa môn học thuộc người dùng"),
+    @("F03", "Nhiệm vụ và lịch", "Theo dõi trạng thái, độ ưu tiên, hạn nộp và lịch học"),
+    @("F04", "Tài liệu", "Upload TXT, MD, PDF, DOCX; tải file gốc; xóa tài liệu"),
+    @("F05", "Lập chỉ mục", "Trích xuất văn bản, chia chunk, tạo embedding và lưu pgvector"),
+    @("F06", "AI học tập", "Sinh tóm tắt, flashcard, quiz và quản lý phiên bản"),
+    @("F07", "RAG chat", "Hỏi đáp theo tài liệu, lưu lịch sử và trả citation"),
+    @("F08", "Tìm kiếm", "Tìm theo từ khóa, ngữ nghĩa hoặc chế độ hybrid"),
+    @("F09", "Quiz", "Làm bài, chấm điểm ở server và lưu lần thử"),
+    @("F10", "Quản trị", "Xem số liệu tổng quan theo quyền quản trị")
+  )
+  Add-Table @("Mã", "Nhóm", "Mô tả") $functionalRows @(2.0, 3.5, 9.0) | Out-Null
+
+  Add-Heading "3.1.2. Yêu cầu phi chức năng" 3
+  Add-Body "Về bảo mật, khóa dịch vụ Supabase và Gemini chỉ được đặt trong môi trường backend; mật khẩu được băm; API riêng tư yêu cầu JWT; truy vấn dữ liệu luôn kèm điều kiện user_id. Bucket study-documents được cấu hình private và file chỉ được tải qua signed URL có thời hạn. Hệ thống áp dụng Helmet, CORS theo danh sách cho phép, giới hạn tần suất và kiểm tra kiểu, kích thước file."
+  Add-Body "Về khả dụng, giao diện cần phản hồi rõ trạng thái pending, processing, completed hoặc failed; thông báo lỗi không được làm mất phiên làm việc; các thao tác chính phải dễ tìm trên cả màn hình máy tính và thiết bị nhỏ. Về khả năng bảo trì, frontend, route, controller, service và repository được tách trách nhiệm; model AI, kích thước embedding và thông tin kết nối được cấu hình bằng biến môi trường."
+
+  Add-Heading "3.2. Tác nhân và trường hợp sử dụng" 2
+  Add-Body "Hệ thống có hai tác nhân chính. Người dùng thông thường sử dụng toàn bộ chức năng học tập trên dữ liệu của chính mình. Quản trị viên kế thừa các quyền cơ bản và có thêm quyền xem thống kê quản trị. Các dịch vụ bên ngoài gồm Supabase Database, Supabase Storage và Gemini API đóng vai trò hạ tầng, không trực tiếp thao tác giao diện."
+  Add-NoIndent "Bảng 3.2. Các trường hợp sử dụng tiêu biểu" 1 $true 13
+  $useCaseRows = @(
+    @("UC01", "Đăng nhập", "Thông tin hợp lệ", "Nhận JWT và hồ sơ người dùng"),
+    @("UC02", "Upload tài liệu", "Đã xác thực", "File private và bản ghi tài liệu được tạo"),
+    @("UC03", "Lập chỉ mục", "Tài liệu có văn bản", "Các chunk và embedding được lưu"),
+    @("UC04", "Tóm tắt AI", "Tài liệu sẵn sàng", "Một phiên bản tóm tắt mới được tạo"),
+    @("UC05", "Hỏi đáp RAG", "Đã lập chỉ mục", "Câu trả lời kèm nguồn tham chiếu"),
+    @("UC06", "Làm quiz", "Quiz tồn tại", "Điểm và đáp án được chấm phía server"),
+    @("UC07", "Tìm kiếm hybrid", "Có dữ liệu", "Danh sách kết quả xếp hạng phù hợp")
+  )
+  Add-Table @("Mã", "Tên", "Tiền điều kiện", "Kết quả") $useCaseRows @(2.0, 3.2, 4.5, 4.8) | Out-Null
+
+  Add-Heading "3.3. Kiến trúc tổng thể" 2
+  Add-Body "Hệ thống áp dụng kiến trúc client-server ba tầng. Tầng trình bày là ứng dụng React chạy trên trình duyệt, quản lý router, form, trạng thái tải và hiển thị kết quả. Tầng nghiệp vụ là REST API Node.js/Express, chịu trách nhiệm xác thực, kiểm tra dữ liệu, điều phối nghiệp vụ, gọi AI và kiểm soát quyền truy cập. Tầng dữ liệu dùng Supabase PostgreSQL, pgvector và Storage private."
+  Add-NoIndent "Trình duyệt React/Vite  →  REST API Express  →  Service/Repository  →  PostgreSQL + pgvector" 1 $true 13
+  Add-NoIndent "                                                         ↘  Supabase Storage private" 1 $false 13
+  Add-NoIndent "                                                         ↘  Gemini generation/embedding" 1 $false 13
+  Add-NoIndent "Hình 3.1. Kiến trúc logic của hệ thống StudyAI" 1 $false 12
+  Add-Body "Frontend không kết nối trực tiếp bằng service key. Mọi yêu cầu nghiệp vụ đi qua backend và mang Authorization: Bearer token. Cách tổ chức này tạo một điểm kiểm soát tập trung cho validation, rate limit, logging và xử lý lỗi, đồng thời tránh lộ thông tin đặc quyền trong mã JavaScript gửi xuống trình duyệt."
+
+  Add-Heading "3.4. Thiết kế dữ liệu" 2
+  Add-Body "Cơ sở dữ liệu được thiết kế theo mô hình quan hệ. Bảng users là gốc của dữ liệu sở hữu; subjects nhóm hoạt động học tập; tasks lưu nhiệm vụ; documents lưu metadata file và trạng thái lập chỉ mục. Nội dung tài liệu được tách sang document_chunks để hỗ trợ tìm kiếm vector. Các sản phẩm AI được lưu trong summaries, flashcards, quizzes và ai_generations nhằm theo dõi phiên bản thay vì ghi đè kết quả cũ."
+  Add-NoIndent "Bảng 3.3. Vai trò của các bảng dữ liệu" 1 $true 13
+  $entityRows = @(
+    @("users", "Tài khoản, vai trò, mật khẩu đã băm"),
+    @("subjects", "Môn học thuộc người dùng"),
+    @("tasks", "Nhiệm vụ, hạn nộp, độ ưu tiên và trạng thái"),
+    @("documents", "Metadata file, storage path, nội dung trích xuất, trạng thái index"),
+    @("document_chunks", "Đoạn văn, vị trí, metadata và vector 768 chiều"),
+    @("ai_generations", "Loại nội dung AI, số phiên bản, trạng thái và lỗi"),
+    @("summaries", "Bản tóm tắt đang dùng và các phiên bản"),
+    @("flashcards", "Cặp câu hỏi - câu trả lời phục vụ ôn tập"),
+    @("quizzes", "Bộ câu hỏi và đáp án chuẩn lưu phía server"),
+    @("quiz_attempts", "Lần làm bài, điểm số và kết quả chi tiết"),
+    @("document_chats", "Lịch sử hỏi đáp và citation theo tài liệu"),
+    @("study_plans", "Thông tin kế hoạch học tập")
+  )
+  Add-Table @("Bảng", "Vai trò") $entityRows @(4.8, 9.7) | Out-Null
+  Add-Body "Khóa ngoại và chính sách truy cập duy trì tính toàn vẹn. Khi xóa đối tượng cha, dữ liệu phụ thuộc được xử lý theo ràng buộc thiết kế. Chỉ mục thông thường hỗ trợ lọc theo user_id, subject_id và trạng thái; chỉ mục vector HNSW hỗ trợ truy vấn khoảng cách cosine trên embedding. Hàm RPC match_document_chunks nhận vector truy vấn, ngưỡng và số kết quả để trả về các chunk phù hợp."
+
+  Add-Heading "3.5. Thiết kế API" 2
+  Add-NoIndent "Bảng 3.4. Một số endpoint quan trọng" 1 $true 13
+  $apiRows = @(
+    @("POST", "/api/auth/login", "Xác thực và phát JWT"),
+    @("GET/POST", "/api/subjects", "Đọc hoặc tạo môn học"),
+    @("GET/POST", "/api/tasks", "Quản lý nhiệm vụ"),
+    @("POST", "/api/documents", "Upload và tạo tài liệu"),
+    @("POST", "/api/documents/:id/reindex", "Lập chỉ mục lại"),
+    @("POST", "/api/documents/:id/summaries", "Sinh tóm tắt"),
+    @("POST", "/api/documents/:id/flashcards", "Sinh flashcard"),
+    @("POST", "/api/documents/:id/quizzes", "Sinh quiz"),
+    @("POST", "/api/documents/:id/chat", "Hỏi đáp RAG"),
+    @("GET", "/api/search", "Tìm kiếm keyword/semantic/hybrid")
+  )
+  Add-Table @("Method", "Endpoint", "Mục đích") $apiRows @(2.5, 6.5, 5.5) | Out-Null
+  Add-Body "API trả dữ liệu JSON với mã trạng thái HTTP phù hợp. Dữ liệu đầu vào được kiểm tra bằng schema; lỗi nghiệp vụ được chuyển qua middleware tập trung. Với upload, backend dùng multipart/form-data; với tải file private, backend tạo URL ký số ngắn hạn. Các endpoint AI có rate limit riêng vì chi phí và độ trễ cao hơn CRUD thông thường."
+
+  Add-Heading "3.6. Thiết kế các luồng xử lý chính" 2
+  Add-Heading "3.6.1. Luồng upload và lập chỉ mục" 3
+  Add-Body "Người dùng chọn file và môn học, frontend gửi multipart request. Backend xác thực token, kiểm tra phần mở rộng, MIME và kích thước, sau đó đưa file vào bucket private theo đường dẫn có user_id. Service trích xuất nội dung bằng parser tương ứng, chuẩn hóa khoảng trắng và cập nhật documents. Khi lập chỉ mục, nội dung được chia thành chunk khoảng 800 đến 1.200 ký tự với phần chồng lấn, tạo embedding 768 chiều và lưu theo thứ tự. Trạng thái chuyển lần lượt pending, processing, completed; nếu lỗi, thông điệp được lưu để giao diện cho phép thử lại."
+
+  Add-Heading "3.6.2. Luồng hỏi đáp RAG" 3
+  Add-Body "Câu hỏi được tạo embedding bằng cùng model đã dùng cho tài liệu. Backend truy vấn các chunk có độ tương đồng cao, đồng thời có thể kết hợp tìm kiếm từ khóa. Các đoạn được đánh nhãn nguồn, ghép vào prompt cùng yêu cầu chỉ trả lời theo ngữ cảnh. Gemini sinh câu trả lời; backend phân tích citation hợp lệ, lưu hội thoại và trả về nội dung cùng danh sách nguồn. Nếu embedding hoặc tìm kiếm vector lỗi, chế độ hybrid có thể chuyển sang keyword_fallback để duy trì khả năng sử dụng."
+  Add-NoIndent "Câu hỏi → embedding → truy xuất chunk → dựng ngữ cảnh → Gemini → câu trả lời + citation" 1 $true 13
+  Add-NoIndent "Hình 3.2. Chuỗi xử lý hỏi đáp RAG" 1 $false 12
+
+  Add-Heading "3.6.3. Luồng sinh học liệu và quản lý phiên bản" 3
+  Add-Body "Khi tạo tóm tắt, flashcard hoặc quiz, backend lấy nội dung đã trích xuất và dựng prompt yêu cầu đầu ra có cấu trúc. Mỗi lần sinh tạo một bản ghi ai_generations với số phiên bản tăng dần. Kết quả hợp lệ được lưu và có thể đặt làm phiên bản đang dùng. Thiết kế này giữ lịch sử, hỗ trợ so sánh và tránh mất dữ liệu khi người dùng yêu cầu sinh lại. Với quiz, đáp án đúng không được gửi kèm đề cho client; bài làm được chấm ở backend để hạn chế gian lận."
+
+  Add-Heading "3.7. Thiết kế bảo mật" 2
+  Add-Body "Cơ chế xác thực dùng JWT có thời hạn. Middleware giải mã token và lấy người dùng hiện hành từ cơ sở dữ liệu; vì vậy token của tài khoản đã bị xóa hoặc thay đổi không còn được chấp nhận. Mật khẩu sử dụng bcrypt. Các route dữ liệu áp dụng kiểm tra quyền sở hữu, không tin vào user_id do client gửi. CORS chỉ cho phép các origin cấu hình, Helmet bổ sung header bảo vệ và rate limiter giảm nguy cơ thử mật khẩu hoặc lạm dụng AI."
+  Add-Body "Storage bucket phải ở trạng thái private. Backend dùng service role cho thao tác máy chủ nhưng chỉ phát signed URL sau khi xác minh quyền. File upload được giới hạn định dạng và dung lượng; tên file vật lý được chuẩn hóa để tránh traversal. Biến môi trường thật không được commit; khóa bị chia sẻ phải được rotate. Các migration bổ sung chính sách RLS và quyền RPC nhằm giảm bề mặt truy cập trực tiếp."
+
+  Add-Heading "3.8. Tiểu kết Chương 3" 2
+  Add-Body "Chương 3 đã chuyển yêu cầu của StudyAI thành kiến trúc, mô hình dữ liệu, API và các quy trình xử lý cụ thể. Thiết kế nhấn mạnh quyền sở hữu dữ liệu, kho file private, lập chỉ mục có trạng thái, nội dung AI có phiên bản và RAG có citation. Đây là cơ sở để triển khai và đánh giá hệ thống trong chương tiếp theo."
+  Add-PageBreak
+
+  Add-Heading "CHƯƠNG 4. TRIỂN KHAI VÀ KẾT QUẢ THỰC NGHIỆM" 1
+  Add-Heading "4.1. Môi trường triển khai" 2
+  Add-Body "Hệ thống được phát triển trên Windows, sử dụng Node.js 24.15.0 và npm. Frontend dùng React 18, React Router, Axios và Vite 5.4.21. Backend dùng Express theo chuẩn ES Modules. Dữ liệu được đặt trên Supabase PostgreSQL; extension pgvector lưu vector; Storage chứa file tài liệu. Gemini cung cấp model sinh nội dung và model embedding. Trình duyệt được dùng để kiểm thử tích hợp giao diện và API trên localhost."
+  Add-NoIndent "Bảng 4.1. Thành phần môi trường thực nghiệm" 1 $true 13
+  $envRows = @(
+    @("Frontend", "React 18, Vite 5.4.21, React Router, Axios"),
+    @("Backend", "Node.js 24.15.0, Express, JavaScript ES Modules"),
+    @("Cơ sở dữ liệu", "Supabase PostgreSQL, pgvector"),
+    @("Lưu trữ", "Supabase Storage bucket private study-documents"),
+    @("AI", "Gemini generation và gemini-embedding-001, vector 768 chiều"),
+    @("Bảo mật", "JWT, bcrypt, Helmet, CORS, rate limiting, Zod")
+  )
+  Add-Table @("Thành phần", "Cấu hình") $envRows @(4.5, 10.0) | Out-Null
+
+  Add-Heading "4.2. Triển khai các mô-đun" 2
+  Add-Heading "4.2.1. Frontend" 3
+  Add-Body "Frontend tổ chức theo trang và component dùng chung. Router phân tách đăng nhập, dashboard, môn học, nhiệm vụ, lịch, tài liệu và tìm kiếm. Axios interceptor gắn token vào request; tầng xử lý lỗi chuyển thông báo kỹ thuật thành phản hồi phù hợp. Các trang tài liệu hiển thị trạng thái lập chỉ mục, nút thử lại, phiên bản AI đang dùng và nguồn trích dẫn."
+  Add-Heading "4.2.2. Backend" 3
+  Add-Body "Backend tổ chức route-controller-service-repository. Route định nghĩa endpoint và middleware; controller chuẩn hóa request/response; service thực thi nghiệp vụ; repository tương tác Supabase. Lớp AI đóng gói lời gọi Gemini và chế độ mock phục vụ kiểm thử. Cấu trúc này giúp thay đổi provider hoặc bổ sung queue mà không phải viết lại giao diện API."
+  Add-Heading "4.2.3. Cơ sở dữ liệu và Storage" 3
+  Add-Body "Các migration tạo bảng, chỉ mục vector, RPC tìm kiếm và chính sách bảo mật. Bucket study-documents được đặt private. File cũ ở local có thể chuyển bằng script migrate:storage. Sau migration, tài liệu cũ cần được lập chỉ mục lại để tạo chunk và embedding theo cấu trúc mới."
+
+  Add-Heading "4.3. Kết quả giao diện" 2
+  Add-Figure (Join-Path $scriptDirectory "studyai-login.png") "Hình 4.1. Giao diện đăng nhập StudyAI" 14.0
+  Add-Body "Trang đăng nhập yêu cầu email và mật khẩu, hiển thị lỗi rõ ràng và chỉ chuyển vào vùng ứng dụng sau khi backend phát token hợp lệ. Phiên đăng nhập được duy trì ở trình duyệt; khi API trả 401, dữ liệu phiên cũ được xóa để tránh trạng thái giao diện đã đăng nhập nhưng request tiếp tục thất bại."
+  Add-Figure (Join-Path $scriptDirectory "studyai-documents.png") "Hình 4.2. Giao diện upload và quản lý tài liệu" 14.0
+  Add-Body "Trang tài liệu cho phép chọn môn học, file và theo dõi trạng thái. Người dùng có thể nhận biết tài liệu chưa lập chỉ mục, đang xử lý, đã sẵn sàng hoặc thất bại. Thiết kế trạng thái giúp người dùng biết khi nào các chức năng RAG và tìm kiếm ngữ nghĩa có thể sử dụng."
+  Add-Figure (Join-Path $scriptDirectory "studyai-document-detail.png") "Hình 4.3. Chi tiết tài liệu và các công cụ AI" 14.0
+  Add-Body "Tại trang chi tiết, người dùng tải file gốc qua signed URL, lập chỉ mục lại, tạo tóm tắt, flashcard, quiz và hỏi đáp. Trạng thái sẵn sàng được hiển thị cạnh tiêu đề. Các phiên bản AI được lưu để người dùng lựa chọn bản đang dùng thay vì mất kết quả cũ khi sinh lại."
+  Add-Figure (Join-Path $scriptDirectory "studyai-search.png") "Hình 4.4. Giao diện tìm kiếm tài liệu" 14.0
+  Add-Body "Màn hình tìm kiếm cung cấp các chế độ keyword, semantic và hybrid. Kết quả trả về kèm loại chế độ thực tế đã dùng; điều này đặc biệt hữu ích khi semantic gặp lỗi và backend chuyển sang keyword fallback."
+
+  Add-Heading "4.4. Kiểm thử và kết quả" 2
+  Add-Heading "4.4.1. Kiểm thử tự động backend" 3
+  Add-Body "Bộ kiểm thử backend được chạy bằng npm test trong ngày 18/07/2026. Kết quả 6 trên 6 kiểm thử đạt, không có kiểm thử thất bại. Tổng thời gian thực thi xấp xỉ 280 ms. Các ca kiểm thử tập trung vào những quy tắc dễ gây sai lệch trong RAG và quiz."
+  Add-NoIndent "Bảng 4.2. Kết quả kiểm thử backend" 1 $true 13
+  $testRows = @(
+    @("Chunking", "Giữ thứ tự, không tạo chunk rỗng, có overlap", "Đạt"),
+    @("Embedding mock", "Deterministic và đúng 768 chiều", "Đạt"),
+    @("Quiz validation", "Phát hiện đáp án trùng hoặc không hợp lệ", "Đạt"),
+    @("Question count", "Chỉ chấp nhận từ 1 đến 30 câu", "Đạt"),
+    @("Citation parser", "Phân tích đúng nhãn nguồn", "Đạt"),
+    @("Mock quiz", "Đúng số lượng và offset", "Đạt")
+  )
+  Add-Table @("Nhóm", "Mục tiêu", "Kết quả") $testRows @(4.0, 8.5, 2.0) | Out-Null
+
+  Add-Heading "4.4.2. Kiểm tra build frontend" 3
+  Add-Body "Lệnh npm run build hoàn tất thành công với Vite 5.4.21. Công cụ xử lý 105 mô-đun trong khoảng 872 ms. Gói kết quả gồm index.html 0,39 kB; CSS 12,04 kB, gzip 3,26 kB; JavaScript 246,91 kB, gzip 79,96 kB. Kết quả xác nhận mã frontend có thể đóng gói cho môi trường production và không phát sinh lỗi biên dịch tại thời điểm kiểm tra."
+  Add-NoIndent "Bảng 4.3. Kết quả build frontend" 1 $true 13
+  $buildRows = @(
+    @("Số mô-đun", "105", "Hoàn tất"),
+    @("CSS", "12,04 kB; gzip 3,26 kB", "Hoàn tất"),
+    @("JavaScript", "246,91 kB; gzip 79,96 kB", "Hoàn tất"),
+    @("Thời gian build", "872 ms", "Hoàn tất")
+  )
+  Add-Table @("Chỉ số", "Giá trị", "Trạng thái") $buildRows @(4.5, 6.5, 3.5) | Out-Null
+
+  Add-Heading "4.4.3. Kiểm thử luồng nghiệp vụ" 3
+  Add-Body "Thử nghiệm tích hợp xác nhận người dùng có thể đăng nhập, upload tài liệu văn bản, lập chỉ mục và nhận trạng thái đã sẵn sàng. Sau khi lập chỉ mục, chức năng tóm tắt tạo được phiên bản mới; giao diện hiển thị bản đang dùng. RAG chat và tìm kiếm chỉ được mở khi tài liệu đủ điều kiện. Signed URL cho phép tải file gốc mà không chuyển bucket sang public."
+  Add-NoIndent "Bảng 4.4. Đánh giá các luồng chính" 1 $true 13
+  $workflowRows = @(
+    @("Đăng nhập và xác minh JWT", "Hoạt động"),
+    @("CRUD môn học, nhiệm vụ", "Hoạt động"),
+    @("Upload file và Storage private", "Hoạt động"),
+    @("Trích xuất và lập chỉ mục RAG", "Hoạt động với file có lớp văn bản"),
+    @("Tóm tắt, flashcard, quiz", "Hoạt động khi Gemini được cấu hình"),
+    @("Hỏi đáp và citation", "Hoạt động trên tài liệu đã index"),
+    @("Keyword/semantic/hybrid search", "Hoạt động; có keyword fallback")
+  )
+  Add-Table @("Luồng", "Kết quả") $workflowRows @(9.0, 5.5) | Out-Null
+
+  Add-Heading "4.5. Đánh giá" 2
+  Add-Body "Kết quả cho thấy StudyAI đáp ứng mục tiêu xây dựng một hệ thống học tập full-stack tích hợp quản lý và AI. Điểm nổi bật là dữ liệu được phân tách theo người dùng, file lưu private, nội dung AI có phiên bản, quiz chấm ở server và câu trả lời RAG có nguồn. Kiến trúc module hóa giúp tiếp tục mở rộng mà không phá vỡ hợp đồng API hiện có."
+  Add-Body "Tuy nhiên, thử nghiệm hiện chủ yếu ở quy mô cá nhân và dữ liệu mẫu. Chất lượng tóm tắt, flashcard, quiz và truy xuất phụ thuộc chất lượng văn bản đầu vào, model Gemini, chiến lược chunk và ngưỡng tìm kiếm. Hệ thống chưa có bộ đánh giá RAG chuẩn hóa như precision@k, recall@k hay đánh giá mức độ bám nguồn; chưa đo tải đồng thời; và chưa xử lý OCR cho tài liệu quét."
+  Add-Heading "4.6. Tiểu kết Chương 4" 2
+  Add-Body "Chương 4 đã mô tả môi trường, cách triển khai các tầng, giao diện thực tế và kết quả kiểm thử. Backend đạt 6/6 ca kiểm thử tự động, frontend build thành công và các luồng cốt lõi hoạt động trên môi trường local kết nối Supabase và Gemini. Những hạn chế quan sát được là cơ sở đề xuất hướng phát triển ở Chương 5."
+  Add-PageBreak
+
+  Add-Heading "CHƯƠNG 5. KẾT LUẬN VÀ HƯỚNG PHÁT TRIỂN" 1
+  Add-Heading "5.1. Kết quả đạt được" 2
+  Add-Body "Đề tài đã xây dựng được hệ thống StudyAI theo mô hình ứng dụng web full-stack. Sản phẩm tích hợp quản lý môn học, nhiệm vụ, lịch và tài liệu với các công cụ AI phục vụ tự học. Tài liệu TXT, Markdown, PDF có lớp văn bản và DOCX có thể được tải lên, trích xuất, chia đoạn, tạo embedding và lưu trong PostgreSQL/pgvector. Người dùng có thể tạo tóm tắt, flashcard, quiz, làm bài và hỏi đáp theo tài liệu."
+  Add-Body "Mục tiêu tăng khả năng kiểm chứng được giải quyết bằng quy trình RAG và citation. Mục tiêu bảo mật dữ liệu cá nhân được hỗ trợ bởi JWT, kiểm tra quyền sở hữu, bucket private, signed URL và việc giữ khóa dịch vụ ở backend. Cơ chế phiên bản cho nội dung AI giúp tránh ghi đè kết quả và tạo nền tảng cho so sánh chất lượng trong tương lai. Bộ kiểm thử backend và kết quả build frontend cho thấy hệ thống đạt mức ổn định phù hợp với phạm vi đồ án."
+
+  Add-Heading "5.2. Hạn chế" 2
+  Add-Body "Thứ nhất, tài liệu PDF dạng ảnh chưa được OCR nên không thể lập chỉ mục nếu không có lớp văn bản. Thứ hai, quá trình trích xuất, embedding và sinh nội dung còn chạy đồng bộ trong request; tài liệu lớn hoặc API chậm có thể làm tăng thời gian chờ. Thứ ba, chất lượng truy xuất chưa được đánh giá bằng bộ câu hỏi chuẩn và chưa có bước re-ranking chuyên biệt. Thứ tư, phụ thuộc dịch vụ Gemini làm hệ thống chịu ảnh hưởng của quota, thay đổi model và kết nối mạng."
+  Add-Body "Ngoài ra, hệ thống chưa có quan sát vận hành đầy đủ như dashboard log, metric và cảnh báo; chưa kiểm thử tải; trải nghiệm trên thiết bị di động cần tiếp tục đánh giá; và tính cá nhân hóa mới dừng ở dữ liệu theo tài khoản, chưa dùng lịch sử học để điều chỉnh độ khó hoặc đề xuất kế hoạch."
+
+  Add-Heading "5.3. Hướng phát triển" 2
+  Add-Body "Trong ngắn hạn, hệ thống nên bổ sung hàng đợi nền cho lập chỉ mục và sinh nội dung, hiển thị tiến độ theo job và cho phép tự động retry. OCR có thể được tích hợp cho tài liệu quét. Pipeline RAG nên bổ sung truy xuất nhiều giai đoạn, re-ranking và bộ đánh giá với câu hỏi - đáp án chuẩn để đo recall, độ đúng citation và mức bám nguồn. Việc cache embedding và kết quả truy xuất giúp giảm độ trễ và chi phí."
+  Add-Body "Về học tập cá nhân hóa, StudyAI có thể bổ sung spaced repetition cho flashcard, theo dõi mastery theo chủ đề, đề xuất lịch ôn dựa trên hạn nhiệm vụ và sinh quiz thích nghi. Về vận hành, cần bổ sung log có cấu trúc, metric, kiểm thử end-to-end, CI/CD, backup và quy trình rotate secret. Khi số người dùng tăng, backend có thể tách worker xử lý tài liệu, dùng queue và giới hạn tài nguyên theo tenant."
+  Add-Body "Về trải nghiệm, có thể thêm xem trước nội dung và citation theo trang, chỉnh sửa flashcard/quiz trước khi lưu, xuất dữ liệu học tập, hỗ trợ kéo thả nhiều file và thông báo tiến độ thời gian thực. Các cải tiến này tiếp tục giữ nguyên nguyên tắc cốt lõi của đề tài: AI phải hỗ trợ người học khai thác tài liệu nhanh hơn nhưng kết quả cần minh bạch, có nguồn và nằm trong quyền kiểm soát của người dùng."
+
+  Add-Heading "5.4. Kết luận chung" 2
+  Add-Body "StudyAI chứng minh tính khả thi của việc kết hợp ứng dụng quản lý học tập với mô hình ngôn ngữ và RAG trong một sản phẩm web. Đề tài không chỉ tạo nội dung tự động mà còn tổ chức dữ liệu, bảo vệ file riêng tư, lưu lịch sử và cung cấp nguồn kiểm chứng. Kết quả đạt được là nền tảng phù hợp để tiếp tục nghiên cứu chất lượng truy xuất, cá nhân hóa và triển khai ở quy mô thực tế."
+  Add-PageBreak
+
+  Add-Heading "PHỤ LỤC" 1
+  Add-Heading "PHỤ LỤC A. CẤU TRÚC MÃ NGUỒN" 2
+  Add-NoIndent "frontend/        Ứng dụng React/Vite, trang, component và lớp gọi API" 0 $false 13
+  Add-NoIndent "backend/src/     Route, controller, middleware, service, repository và cấu hình" 0 $false 13
+  Add-NoIndent "backend/test/    Kiểm thử tự động cho chunking, embedding, quiz và citation" 0 $false 13
+  Add-NoIndent "database/        Schema và các migration Supabase/PostgreSQL" 0 $false 13
+  Add-NoIndent "sample-data/     Tài liệu văn bản phục vụ thử nghiệm" 0 $false 13
+  Add-NoIndent "docs/            Tài liệu kiến trúc, migration và báo cáo" 0 $false 13
+
+  Add-Heading "PHỤ LỤC B. CÁC BIẾN MÔI TRƯỜNG" 2
+  Add-Body "Backend cần PORT, JWT_SECRET, JWT_EXPIRES_IN, SUPABASE_URL, SUPABASE_SERVICE_KEY, SUPABASE_STORAGE_BUCKET, GEMINI_API_KEY, GEMINI_MODEL, GEMINI_EMBEDDING_MODEL, EMBEDDING_DIMENSIONS và GEMINI_USE_MOCK. Báo cáo chỉ liệt kê tên biến, không chứa giá trị bí mật. Frontend cấu hình địa chỉ API qua biến Vite tương ứng."
+
+  Add-Heading "PHỤ LỤC C. QUY TRÌNH KHỞI CHẠY" 2
+  Add-NoIndent "1. Backup cơ sở dữ liệu và chạy migration trong Supabase SQL Editor." 0 $false 13
+  Add-NoIndent "2. Xác nhận bucket study-documents ở chế độ private." 0 $false 13
+  Add-NoIndent "3. Cập nhật backend/.env bằng khóa hợp lệ; không commit file này." 0 $false 13
+  Add-NoIndent "4. Tại backend chạy npm install, npm run dev; tại frontend chạy npm install, npm run dev." 0 $false 13
+  Add-NoIndent "5. Nếu chuyển file local cũ, chạy npm run migrate:storage trong backend." 0 $false 13
+  Add-NoIndent "6. Đăng nhập và dùng nút Lập chỉ mục lại cho tài liệu cũ." 0 $false 13
+  Add-PageBreak

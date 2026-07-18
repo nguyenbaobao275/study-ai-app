@@ -14,9 +14,8 @@ export default function Layout() {
     ...(user?.role === "admin" ? [{ to: "/admin", label: "Admin" }] : [])
   ];
 
-  function handleLogout() {
-    logout();
-    navigate("/login");
+  async function handleLogout() {
+    try { await logout(); } finally { navigate("/login"); }
   }
 
   return (

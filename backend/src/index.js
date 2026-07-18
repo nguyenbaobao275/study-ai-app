@@ -1,9 +1,7 @@
 import express from "express";
 import cors from "cors";
+import helmet from "helmet";
 import dotenv from "dotenv";
-import path from "path";
-import { fileURLToPath } from "url";
-
 import authRoutes from "./routes/authRoutes.js";
 import subjectRoutes from "./routes/subjectRoutes.js";
 import taskRoutes from "./routes/taskRoutes.js";
@@ -12,26 +10,21 @@ import aiRoutes from "./routes/aiRoutes.js";
 import dashboardRoutes from "./routes/dashboardRoutes.js";
 import searchRoutes from "./routes/searchRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
-
+import generationRoutes from "./routes/generationRoutes.js";
 import { errorHandler } from "./middleware/errorHandler.js";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import { apiLimiter } from "./middleware/rateLimiters.js";
+import { allowedOrigins, validateEnvironment } from "./config/env.js";
 
 dotenv.config();
-
+validateEnvironment();
 const app = express();
-const PORT = process.env.PORT || 5000;
-
-app.use(cors());
+const origins = allowedOrigins();
+app.use(helmet());
+app.use(cors({ origin(origin, callback) { if (!origin || origins.includes(origin)) return callback(null, true); callback(Object.assign(new Error("Origin không được phép truy cập API."), { statusCode: 403 })); } }));
 app.use(express.json({ limit: "2mb" }));
-app.use(express.urlencoded({ extended: true }));
-app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
-
-app.get("/", (req, res) => {
-  res.json({ message: "StudyAI API is running" });
-});
-
+app.use(express.urlencoded({ extended: true, limit: "2mb" }));
+app.use("/api", apiLimiter);
+app.get("/", (req, res) => res.json({ message: "StudyAI API is running" }));
 app.use("/api/auth", authRoutes);
 app.use("/api/subjects", subjectRoutes);
 app.use("/api/tasks", taskRoutes);
@@ -40,9 +33,10 @@ app.use("/api/ai", aiRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/search", searchRoutes);
 app.use("/api/admin", adminRoutes);
-
+app.use("/api", generationRoutes);
+app.use((req, res) => res.status(404).json({ success: false, message: "Không tìm thấy API.", details: [] }));
 app.use(errorHandler);
 
-app.listen(PORT, () => {
-  console.log(`StudyAI server running at http://localhost:${PORT}`);
-});
+const port = process.env.PORT || 5000;
+if (process.env.NODE_ENV !== "test") app.listen(port, () => console.log(`StudyAI server running at http://localhost:${port}`));
+export default app;

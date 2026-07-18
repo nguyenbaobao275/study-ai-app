@@ -1,22 +1,15 @@
 import express from "express";
+import { askDocument, generateFlashcards, generateQuizzes, submitQuizAttempt, summarizeDocument } from "../controllers/aiController.js";
 import { protect } from "../middleware/authMiddleware.js";
-import {
-  askDocument,
-  generateFlashcards,
-  generateQuizzes,
-  generateStudyPlan,
-  submitQuizAttempt,
-  summarizeDocument
-} from "../controllers/aiController.js";
+import { aiLimiter } from "../middleware/rateLimiters.js";
+import { validate } from "../middleware/validate.js";
+import { chatSchema, documentIdSchema, quizCountSchema, quizSubmissionSchema } from "../schemas/validationSchemas.js";
 
 const router = express.Router();
-
-router.use(protect);
-router.post("/summarize/:documentId", summarizeDocument);
-router.post("/flashcards/:documentId", generateFlashcards);
-router.post("/quizzes/:documentId", generateQuizzes);
-router.post("/quiz-attempts/:documentId", submitQuizAttempt);
-router.post("/chat/:documentId", askDocument);
-router.post("/study-plan", generateStudyPlan);
-
+router.use(protect, aiLimiter);
+router.post("/summarize/:documentId", validate(documentIdSchema, "params"), summarizeDocument);
+router.post("/flashcards/:documentId", validate(documentIdSchema, "params"), generateFlashcards);
+router.post("/quizzes/:documentId", validate(documentIdSchema, "params"), validate(quizCountSchema), generateQuizzes);
+router.post("/quiz-attempts/:documentId", validate(documentIdSchema, "params"), validate(quizSubmissionSchema), submitQuizAttempt);
+router.post("/chat/:documentId", validate(documentIdSchema, "params"), validate(chatSchema), askDocument);
 export default router;

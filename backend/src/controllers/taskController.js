@@ -1,5 +1,6 @@
 import { supabase } from "../config/supabase.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
+import { assertOwnedSubject } from "../services/ownershipService.js";
 
 export const getTasks = asyncHandler(async (req, res) => {
   const { data, error } = await supabase
@@ -14,10 +15,7 @@ export const getTasks = asyncHandler(async (req, res) => {
 
 export const createTask = asyncHandler(async (req, res) => {
   const { subject_id, title, description, due_date } = req.body;
-
-  if (!title || !due_date) {
-    return res.status(400).json({ message: "Vui lòng nhập tiêu đề và hạn hoàn thành" });
-  }
+  await assertOwnedSubject(subject_id || null, req.user.id);
 
   const { data, error } = await supabase
     .from("tasks")
@@ -38,6 +36,7 @@ export const createTask = asyncHandler(async (req, res) => {
 
 export const updateTask = asyncHandler(async (req, res) => {
   const { subject_id, title, description, due_date, status } = req.body;
+  await assertOwnedSubject(subject_id || null, req.user.id);
 
   const { data, error } = await supabase
     .from("tasks")

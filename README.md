@@ -1,246 +1,74 @@
-# StudyAI - Ứng dụng quản lý học tập cá nhân tích hợp AI
+# StudyAI
 
-Đề tài: **Xây dựng ứng dụng quản lý học tập cá nhân tích hợp AI hỗ trợ tóm tắt tài liệu, tạo flashcard, tạo quiz và lập kế hoạch học tập**.
+StudyAI là trợ lý học tập full-stack dùng React, Express, Supabase PostgreSQL và Gemini. Ứng dụng quản lý môn học, nhiệm vụ, tài liệu, tóm tắt, flashcard, quiz và hỏi đáp có trích nguồn.
 
-Project được chia rõ thành **Frontend**, **Backend** và **Database**.
+## Kiến trúc
 
-## 1. Cấu Trúc Dự Án
+```text
+React/Vite -> Express API -> Supabase PostgreSQL + private Storage
+                         -> Gemini generation + embedding
 
-```txt
-study-ai-app/
-├── frontend/               # Frontend - React + Vite
-│   ├── src/
-│   │   ├── components/     # Component dùng lại
-│   │   ├── context/        # AuthContext, trạng thái đăng nhập
-│   │   ├── pages/          # Các màn hình chính
-│   │   ├── services/       # Cấu hình gọi API bằng axios
-│   │   ├── styles/         # CSS toàn cục
-│   │   ├── App.jsx         # Khai báo route frontend
-│   │   └── main.jsx        # Entry point React
-│   ├── .env                # Biến môi trường frontend
-│   └── package.json
-│
-├── backend/                # Backend - Node.js + Express
-│   ├── src/
-│   │   ├── config/         # Kết nối Supabase
-│   │   ├── controllers/    # Xử lý nghiệp vụ API
-│   │   ├── middleware/     # Auth middleware, error handler
-│   │   ├── routes/         # Khai báo API routes
-│   │   ├── services/       # AI service, trích xuất tài liệu
-│   │   ├── utils/          # Helper dùng chung
-│   │   └── index.js        # Entry point backend
-│   ├── scripts/            # Script tạo dữ liệu mẫu
-│   ├── uploads/            # File upload local
-│   ├── .env                # Biến môi trường backend
-│   └── package.json
-│
-├── database/
-│   └── schema.sql          # Schema Supabase PostgreSQL
-│
-├── sample-data/            # Tài liệu mẫu để demo
-└── README.md
+Upload -> extract -> chunk -> embedding -> pgvector
+Question -> query embedding -> match_document_chunks -> Gemini -> citation
 ```
 
-## 2. Frontend
+Backend giữ service role key; frontend chỉ giữ JWT của StudyAI. File mới nằm trong private bucket `study-documents`, đường dẫn `{userId}/{documentId}/{safeFileName}`.
 
-Thư mục: `frontend/`
+## Cài đặt
 
-Công nghệ:
+1. Chạy `database/schema.sql` cho database mới, hoặc `database/migrations/002_rag_versions_security.sql` cho database hiện có.
+2. Tạo/cập nhật `backend/.env` từ `backend/.env.example`. `SUPABASE_URL` phải là URL gốc dạng `https://project.supabase.co`, không có `/rest/v1`.
+3. Đảm bảo bucket `study-documents` là private. Migration sẽ tạo bucket nếu tài khoản chạy SQL có quyền.
+4. Chạy backend bằng `cd backend && npm install && npm run dev`.
+5. Chạy frontend bằng `cd frontend && npm install && npm run dev`.
 
-- React
-- Vite
-- React Router
-- Axios
-- CSS thuần
+Không commit `.env`. Nếu secret từng xuất hiện trong git hoặc file chia sẻ, hãy rotate Supabase service key, Gemini API key và JWT secret.
 
-Chức năng chính:
+## Biến môi trường
 
-- Đăng ký, đăng nhập.
-- Dashboard thống kê học tập.
-- Quản lý môn học.
-- Quản lý nhiệm vụ/deadline.
-- Lịch học dạng calendar.
-- Quản lý tài liệu.
-- Xem chi tiết tài liệu.
-- Chat hỏi đáp theo tài liệu.
-- Làm quiz và lưu kết quả.
-- Tìm kiếm học liệu.
-- Trang admin nếu tài khoản có quyền admin.
+Các biến mới gồm `ALLOWED_ORIGINS`, `MAX_EXTRACTED_TEXT_CHARS`, `JWT_EXPIRES_IN`, `SUPABASE_STORAGE_BUCKET`, `GEMINI_EMBEDDING_MODEL`, `EMBEDDING_DIMENSIONS`, `RAG_MATCH_COUNT`, `RAG_MATCH_THRESHOLD` và `PDF_FONT_PATH`. Xem đầy đủ trong `backend/.env.example`.
 
-Chạy frontend:
+`PDF_FONT_PATH` có thể trỏ đến font Unicode trên máy chạy server. Nếu để trống hoặc file không tồn tại, PDFKit dùng font mặc định và server vẫn chạy.
 
-```bash
-cd frontend
-npm install
-npm run dev
-```
+## RAG và tìm kiếm
 
-Frontend mặc định chạy tại:
+Upload mới tạo chunk khoảng 800-1.200 ký tự với overlap, embedding 768 chiều và trạng thái `pending/processing/completed/failed`. Khi lỗi, trang chi tiết có nút **Lập chỉ mục lại**.
 
-```txt
-http://localhost:5173
-```
+Tìm kiếm hỗ trợ `hybrid`, `semantic`, `keyword` qua `GET /api/search?q=...&mode=hybrid&limit=10`. Nếu embedding lỗi, hybrid/semantic tự chuyển sang keyword và trả `search_mode_used=keyword_fallback`.
 
-File môi trường frontend:
+Mock mode (`GEMINI_USE_MOCK=true`) dùng embedding hashing ổn định, phù hợp demo và unit test. Mock không thay thế chất lượng semantic của model thật.
 
-```env
-VITE_API_URL=http://localhost:5000/api
-```
+## AI version và quiz
 
-## 3. Backend
+Mỗi lần tạo summary, flashcard hoặc quiz tạo một `ai_generations` mới. Chỉ version hoàn tất mới được activate; RPC `activate_ai_generation` đảm bảo mỗi loại chỉ có một version active. Trang chi tiết hỗ trợ xem, sửa, activate và xóa version.
 
-Thư mục: `backend/`
+Quiz cho chọn 1-30 câu (UI có lựa chọn nhanh 5/10/15/20). API chi tiết không trả đáp án; backend chấm điểm sau khi gọi endpoint submit.
 
-Công nghệ:
+## Chuyển file local cũ
 
-- Node.js
-- Express
-- JWT Authentication
-- Supabase PostgreSQL
-- Gemini API
-- Multer upload file
-- pdf-parse, mammoth để đọc PDF/DOCX
-- pdfkit để xuất PDF
-
-Nhóm API chính:
-
-```txt
-/api/auth        # Đăng ký, đăng nhập, lấy thông tin user
-/api/subjects    # Quản lý môn học
-/api/tasks       # Quản lý nhiệm vụ/deadline
-/api/documents   # Upload, xem, xóa, xuất PDF tài liệu
-/api/ai          # Tóm tắt, flashcard, quiz, chat, kế hoạch học tập
-/api/dashboard   # Thống kê học tập
-/api/search      # Tìm kiếm học liệu
-/api/admin       # Thống kê admin
-```
-
-Chạy backend:
+Sau khi migration và bucket đã sẵn sàng:
 
 ```bash
 cd backend
-npm install
-npm run dev
+npm run migrate:storage
 ```
 
-Backend mặc định chạy tại:
+Script chỉ xử lý row có `file_path` nhưng chưa có `storage_path`, có thể chạy lại và không xóa file local.
 
-```txt
-http://localhost:5000
-```
-
-File môi trường backend:
-
-```env
-PORT=5000
-JWT_SECRET=your_jwt_secret
-SUPABASE_URL=your_supabase_url
-SUPABASE_SERVICE_KEY=your_supabase_service_key
-GEMINI_API_KEY=your_gemini_api_key
-GEMINI_MODEL=gemini-2.5-flash
-GEMINI_USE_MOCK=false
-```
-
-Nếu chưa có Gemini API key, có thể bật mock:
-
-```env
-GEMINI_USE_MOCK=true
-```
-
-## 4. Database
-
-Thư mục: `database/`
-
-File schema:
-
-```txt
-database/schema.sql
-```
-
-Các nhóm bảng chính:
-
-- `users`: tài khoản người dùng.
-- `subjects`: môn học.
-- `tasks`: nhiệm vụ/deadline.
-- `documents`: tài liệu upload.
-- `summaries`: bản tóm tắt AI.
-- `flashcards`: flashcard AI.
-- `quizzes`: câu hỏi trắc nghiệm AI.
-- `quiz_attempts`: lịch sử làm quiz.
-- `document_chats`: lịch sử hỏi đáp theo tài liệu.
-- `study_plans`: kế hoạch học tập AI.
-
-Cách tạo database:
-
-1. Tạo project trên Supabase.
-2. Mở SQL Editor.
-3. Chạy toàn bộ nội dung file `database/schema.sql`.
-
-Nếu cần reload schema cache Supabase:
-
-```sql
-notify pgrst, 'reload schema';
-```
-
-## 5. Tài Khoản Demo
-
-Tạo dữ liệu mẫu:
+## Kiểm thử
 
 ```bash
 cd backend
-npm run seed:example
+npm test
+
+cd ../frontend
+npm run build
 ```
 
-Tài khoản demo:
+## Giới hạn
 
-```txt
-Email: demo@studyai.local
-Password: Demo123456
-```
-
-## 6. Cách Chạy Toàn Bộ Chương Trình
-
-Mở 2 terminal.
-
-Terminal 1 - Backend:
-
-```bash
-cd backend
-npm run dev
-```
-
-Terminal 2 - Frontend:
-
-```bash
-cd frontend
-npm run dev
-```
-
-Sau đó mở trình duyệt:
-
-```txt
-http://localhost:5173
-```
-
-## 7. Kịch Bản Demo
-
-1. Đăng nhập bằng tài khoản demo.
-2. Xem Dashboard tổng quan.
-3. Tạo môn học mới.
-4. Tạo nhiệm vụ/deadline.
-5. Xem deadline trong Lịch học.
-6. Upload tài liệu `.txt`, `.md`, `.pdf` hoặc `.docx`.
-7. Mở chi tiết tài liệu.
-8. Tạo tóm tắt AI.
-9. Tạo flashcard và bấm để lật thẻ xem đáp án.
-10. Tạo quiz, làm quiz và lưu kết quả.
-11. Chat hỏi đáp theo tài liệu.
-12. Xuất tóm tắt ra PDF.
-13. Tạo kế hoạch học tập AI trên Dashboard.
-14. Tìm kiếm nội dung trong tài liệu, summary, flashcard và quiz.
-
-## 8. Ghi Chú
-
-- Service Role Key của Supabase chỉ đặt trong `backend/.env`, không đưa vào frontend.
-- Nếu đổi file `.env`, cần restart lại backend/frontend.
-- Nếu trình duyệt lưu token cũ, đăng xuất hoặc xóa `study_ai_token` trong Local Storage rồi đăng nhập lại.
+- PDF scan chưa có OCR; PDF phải có text có thể trích xuất.
+- `page_number` có thể là `null` vì thư viện hiện tại không luôn ánh xạ được trang.
+- Semantic search phụ thuộc embedding model và migration pgvector.
+- Indexing chạy trực tiếp trong request, chưa có background queue.
+- File local cũ cần chạy script migration trước khi dùng signed download URL.

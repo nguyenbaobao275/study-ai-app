@@ -1,31 +1,33 @@
-import fs from "fs/promises";
-import path from "path";
-import mammoth from "mammoth";
+import path from "node:path";
+import fs from "node:fs/promises";
 import { PDFParse } from "pdf-parse";
+import mammoth from "mammoth";
 
 const SUPPORTED_EXTENSIONS = new Set([".txt", ".md", ".pdf", ".docx"]);
-const MAX_EXTRACTED_TEXT_LENGTH = 100000;
 
-function createExtractionError(message, statusCode = 400) {
+function extractionError(message) {
   const error = new Error(message);
-  error.statusCode = statusCode;
+  error.statusCode = 400;
   return error;
 }
 
 function normalizeText(text) {
-  return (text || "")
+  const normalized = String(text || "")
     .replace(/\r\n?/g, "\n")
     .replace(/^--\s*\d+\s+of\s+\d+\s*--$/gim, "")
     .replace(/[ \t]+/g, " ")
     .replace(/\n{3,}/g, "\n\n")
-    .trim()
-    .slice(0, MAX_EXTRACTED_TEXT_LENGTH);
+    .trim();
+  const maxChars = Number(process.env.MAX_EXTRACTED_TEXT_CHARS) || 2_000_000;
+  if (normalized.length > maxChars) {
+    throw extractionError(`Tài liệu vượt giới hạn ${maxChars.toLocaleString("vi-VN")} ký tự sau khi trích xuất.`);
+  }
+  if (!normalized) throw extractionError("Tài liệu không có nội dung văn bản có thể đọc.");
+  return normalized;
 }
 
-async function extractPdfText(filePath) {
-  const buffer = await fs.readFile(filePath);
+async function extractPdf(buffer) {
   const parser = new PDFParse({ data: buffer });
-
   try {
     const result = await parser.getText();
     return result.text || "";
@@ -34,40 +36,20 @@ async function extractPdfText(filePath) {
   }
 }
 
-export async function extractTextFromFile(filePath, originalName, mimetype) {
-  const fileExt = path.extname(originalName || "").toLowerCase();
-
-  if (!SUPPORTED_EXTENSIONS.has(fileExt)) {
-    throw createExtractionError("Định dạng file không được hỗ trợ.");
-  }
-
-  let rawText = "";
-
+export async function extractTextFromBuffer(buffer, originalName) {
+  const extension = path.extname(originalName || "").toLowerCase();
+  if (!SUPPORTED_EXTENSIONS.has(extension)) throw extractionError("Định dạng file không được hỗ trợ.");
   try {
-    if (fileExt === ".txt" || fileExt === ".md") {
-      // Đọc nội dung text/markdown trực tiếp từ file.
-      rawText = await fs.readFile(filePath, "utf8");
-    } else if (fileExt === ".pdf") {
-      // Trích xuất text có thể sao chép từ PDF.
-      rawText = await extractPdfText(filePath);
-    } else if (fileExt === ".docx") {
-      // Chuyển DOCX sang plain text bằng mammoth.
-      const result = await mammoth.extractRawText({ path: filePath });
-      rawText = result.value || "";
-    }
+    if (extension === ".txt" || extension === ".md") return normalizeText(buffer.toString("utf8"));
+    if (extension === ".pdf") return normalizeText(await extractPdf(buffer));
+    const result = await mammoth.extractRawText({ buffer });
+    return normalizeText(result.value);
   } catch (error) {
-    throw createExtractionError("Không thể trích xuất nội dung từ tài liệu.");
+    if (error.statusCode) throw error;
+    throw extractionError("Không thể trích xuất nội dung từ tài liệu này.");
   }
+}
 
-  const extractedText = normalizeText(rawText);
-
-  if (!extractedText && fileExt === ".pdf") {
-    throw createExtractionError("Không thể trích xuất nội dung. Vui lòng dùng tài liệu có văn bản có thể sao chép.");
-  }
-
-  if (!extractedText) {
-    throw createExtractionError("Tài liệu không có nội dung.");
-  }
-
-  return extractedText;
+export async function extractTextFromFile(filePath, originalName) {
+  return extractTextFromBuffer(await fs.readFile(filePath), originalName);
 }

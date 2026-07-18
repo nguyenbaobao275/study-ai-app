@@ -1,268 +1,52 @@
 import { supabase } from "../config/supabase.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
-import { generateContent, parseJsonFromAI } from "../services/geminiService.js";
-import {
-  buildDocumentChatPrompt,
-  buildFlashcardPrompt,
-  buildQuizPrompt,
-  buildStudyPlanPrompt,
-  buildSummaryPrompt
-} from "../services/aiPromptService.js";
+import { assertFound, getOwnedDocument, getOwnedGeneration } from "../services/ownershipService.js";
+import { generateFlashcardVersion, generateQuizVersion, generateSummaryVersion } from "../services/aiGenerationService.js";
+import { answerDocumentQuestion } from "../services/ragService.js";
 
-async function getOwnedDocument(documentId, userId) {
-  const { data, error } = await supabase
-    .from("documents")
-    .select("*")
-    .eq("id", documentId)
-    .eq("user_id", userId)
-    .single();
-
-  if (error || !data) return null;
-  return data;
-}
-
-function limitText(text, maxChars = 16000) {
-  if (!text) return "";
-  return text.length > maxChars ? text.slice(0, maxChars) : text;
-}
-
-function isSchemaCacheMiss(error) {
-  return error?.code === "PGRST205" || error?.message?.includes("schema cache");
+async function ownedDocument(req) {
+  return assertFound(await getOwnedDocument(req.params.documentId, req.user.id), "Không tìm thấy tài liệu.");
 }
 
 export const summarizeDocument = asyncHandler(async (req, res) => {
-  const document = await getOwnedDocument(req.params.documentId, req.user.id);
-
-  if (!document) {
-    return res.status(404).json({ message: "Không tìm thấy tài liệu" });
-  }
-
-  const documentText = limitText(document.extracted_text);
-  const prompt = buildSummaryPrompt(documentText);
-  const content = await generateContent(prompt);
-
-  const { data, error } = await supabase
-    .from("summaries")
-    .insert({
-      document_id: document.id,
-      summary_type: "ai_summary",
-      content
-    })
-    .select("*")
-    .single();
-
-  if (error) throw error;
-  res.status(201).json(data);
+  res.status(201).json(await generateSummaryVersion(await ownedDocument(req)));
 });
 
 export const generateFlashcards = asyncHandler(async (req, res) => {
-  const document = await getOwnedDocument(req.params.documentId, req.user.id);
-
-  if (!document) {
-    return res.status(404).json({ message: "Không tìm thấy tài liệu" });
-  }
-
-  const prompt = buildFlashcardPrompt(limitText(document.extracted_text));
-  const aiText = await generateContent(prompt);
-  const flashcards = parseJsonFromAI(aiText, []);
-
-  if (!Array.isArray(flashcards) || flashcards.length === 0) {
-    return res.status(500).json({ message: "AI không trả về flashcard hợp lệ" });
-  }
-
-  const rows = flashcards
-    .filter((item) => item.question && item.answer)
-    .map((item) => ({
-      document_id: document.id,
-      question: item.question,
-      answer: item.answer
-    }));
-
-  const { data, error } = await supabase
-    .from("flashcards")
-    .insert(rows)
-    .select("*");
-
-  if (error) throw error;
-  res.status(201).json(data);
+  res.status(201).json(await generateFlashcardVersion(await ownedDocument(req), 10));
 });
 
 export const generateQuizzes = asyncHandler(async (req, res) => {
-  const document = await getOwnedDocument(req.params.documentId, req.user.id);
-
-  if (!document) {
-    return res.status(404).json({ message: "Không tìm thấy tài liệu" });
-  }
-
-  const prompt = buildQuizPrompt(limitText(document.extracted_text));
-  const aiText = await generateContent(prompt);
-  const quizzes = parseJsonFromAI(aiText, []);
-
-  if (!Array.isArray(quizzes) || quizzes.length === 0) {
-    return res.status(500).json({ message: "AI không trả về câu hỏi hợp lệ" });
-  }
-
-  const rows = quizzes
-    .filter((item) => item.question && item.option_a && item.correct_answer)
-    .map((item) => ({
-      document_id: document.id,
-      question: item.question,
-      option_a: item.option_a,
-      option_b: item.option_b,
-      option_c: item.option_c,
-      option_d: item.option_d,
-      correct_answer: String(item.correct_answer).trim().toUpperCase(),
-      explanation: item.explanation || ""
-    }));
-
-  const { data, error } = await supabase
-    .from("quizzes")
-    .insert(rows)
-    .select("*");
-
-  if (error) throw error;
-  res.status(201).json(data);
-});
-
-export const submitQuizAttempt = asyncHandler(async (req, res) => {
-  const document = await getOwnedDocument(req.params.documentId, req.user.id);
-  if (!document) {
-    return res.status(404).json({ message: "Không tìm thấy tài liệu" });
-  }
-
-  const answers = req.body.answers || {};
-  const { data: quizzes, error: quizError } = await supabase
-    .from("quizzes")
-    .select("id, correct_answer")
-    .eq("document_id", document.id);
-
-  if (quizError) throw quizError;
-
-  const total = quizzes?.length || 0;
-  const correct = (quizzes || []).filter((quiz) => answers[quiz.id] === quiz.correct_answer).length;
-  const score = total ? Math.round((correct / total) * 10000) / 100 : 0;
-
-  const { data, error } = await supabase
-    .from("quiz_attempts")
-    .insert({
-      user_id: req.user.id,
-      document_id: document.id,
-      total_questions: total,
-      correct_count: correct,
-      score,
-      answers
-    })
-    .select("*")
-    .single();
-
-  if (error) {
-    if (!isSchemaCacheMiss(error)) throw error;
-
-    return res.status(201).json({
-      id: `preview-${Date.now()}`,
-      user_id: req.user.id,
-      document_id: document.id,
-      total_questions: total,
-      correct_count: correct,
-      score,
-      answers,
-      created_at: new Date().toISOString(),
-      persisted: false
-    });
-  }
-
-  res.status(201).json({ ...data, persisted: true });
+  res.status(201).json(await generateQuizVersion(await ownedDocument(req), req.body.question_count));
 });
 
 export const askDocument = asyncHandler(async (req, res) => {
-  const document = await getOwnedDocument(req.params.documentId, req.user.id);
-  if (!document) {
-    return res.status(404).json({ message: "Không tìm thấy tài liệu" });
-  }
-
-  const question = String(req.body.question || "").trim();
-  if (!question) {
-    return res.status(400).json({ message: "Vui lòng nhập câu hỏi" });
-  }
-
-  const prompt = buildDocumentChatPrompt(limitText(document.extracted_text), question);
-  const answer = await generateContent(prompt);
-
-  const { data, error } = await supabase
-    .from("document_chats")
-    .insert({
-      user_id: req.user.id,
-      document_id: document.id,
-      question,
-      answer
-    })
-    .select("*")
-    .single();
-
-  if (error) {
-    if (!isSchemaCacheMiss(error)) throw error;
-
-    return res.status(201).json({
-      id: `preview-${Date.now()}`,
-      user_id: req.user.id,
-      document_id: document.id,
-      question,
-      answer,
-      created_at: new Date().toISOString(),
-      persisted: false
-    });
-  }
-
-  res.status(201).json({ ...data, persisted: true });
+  const document = await ownedDocument(req);
+  res.status(201).json(await answerDocumentQuestion({ document, userId: req.user.id, question: req.body.question }));
 });
 
-export const generateStudyPlan = asyncHandler(async (req, res) => {
-  const userId = req.user.id;
-
-  const [tasksResult, documentsResult, subjectsResult] = await Promise.all([
-    supabase
-      .from("tasks")
-      .select("title, description, due_date, status, subjects(name)")
-      .eq("user_id", userId)
-      .order("due_date", { ascending: true })
-      .limit(12),
-    supabase
-      .from("documents")
-      .select("title, file_type, created_at, subjects(name)")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false })
-      .limit(10),
-    supabase.from("subjects").select("name, description").eq("user_id", userId).limit(20)
-  ]);
-
-  if (tasksResult.error) throw tasksResult.error;
-  if (documentsResult.error) throw documentsResult.error;
-  if (subjectsResult.error) throw subjectsResult.error;
-
-  const prompt = buildStudyPlanPrompt({
-    tasks: tasksResult.data || [],
-    documents: documentsResult.data || [],
-    subjects: subjectsResult.data || []
-  });
-  const content = await generateContent(prompt);
-
-  const { data, error } = await supabase
-    .from("study_plans")
-    .insert({ user_id: userId, content })
-    .select("*")
-    .single();
-
-  if (error) {
-    if (!isSchemaCacheMiss(error)) throw error;
-
-    return res.status(201).json({
-      id: "preview",
-      user_id: userId,
-      content,
-      created_at: new Date().toISOString(),
-      persisted: false
-    });
+export const submitQuizAttempt = asyncHandler(async (req, res) => {
+  const document = await ownedDocument(req);
+  const generation = assertFound(await getOwnedGeneration(req.body.generation_id, req.user.id), "Không tìm thấy phiên bản quiz.");
+  if (generation.document_id !== document.id || generation.content_type !== "quiz" || generation.status !== "completed") {
+    return res.status(400).json({ message: "Phiên bản quiz không thuộc tài liệu này hoặc chưa hoàn tất." });
   }
-
-  res.status(201).json({ ...data, persisted: true });
+  const { data: quizzes, error: quizError } = await supabase.from("quizzes")
+    .select("id, correct_answer, explanation").eq("document_id", document.id).eq("generation_id", generation.id);
+  if (quizError) throw quizError;
+  const quizIds = new Set((quizzes || []).map((quiz) => quiz.id));
+  if (Object.keys(req.body.answers).some((id) => !quizIds.has(id))) return res.status(400).json({ message: "Có câu trả lời không thuộc bộ quiz này." });
+  const results = (quizzes || []).map((quiz) => {
+    const selected = req.body.answers[quiz.id] || null;
+    return { quiz_id: quiz.id, selected_answer: selected, correct_answer: quiz.correct_answer, is_correct: selected === quiz.correct_answer, explanation: quiz.explanation || "" };
+  });
+  const total = results.length;
+  const correct = results.filter((result) => result.is_correct).length;
+  const score = total ? Math.round((correct / total) * 10000) / 100 : 0;
+  const { data: attempt, error } = await supabase.from("quiz_attempts").insert({
+    user_id: req.user.id, document_id: document.id, generation_id: generation.id,
+    total_questions: total, correct_count: correct, score, answers: req.body.answers
+  }).select("*").single();
+  if (error) throw error;
+  res.status(201).json({ attempt, results });
 });

@@ -3,6 +3,8 @@ import { Link } from "react-router-dom";
 import api from "../services/api";
 import EmptyState from "../components/EmptyState";
 
+const indexLabels = { pending: "Chưa lập chỉ mục", processing: "Đang lập chỉ mục", completed: "Đã sẵn sàng", failed: "Lập chỉ mục lỗi" };
+
 export default function Documents() {
   const [documents, setDocuments] = useState([]);
   const [subjects, setSubjects] = useState([]);
@@ -99,6 +101,7 @@ export default function Documents() {
                 </div>
                 <div className="actions">
                   <span className="badge">.{doc.file_type}</span>
+                  <span className={`badge index-${doc.index_status}`}>{indexLabels[doc.index_status] || "Chưa lập chỉ mục"}</span>
                   <Link className="btn btn-ghost" to={`/documents/${doc.id}`}>Xem chi tiết</Link>
                   <button className="btn btn-danger" onClick={() => handleDelete(doc.id)}>Xóa</button>
                 </div>

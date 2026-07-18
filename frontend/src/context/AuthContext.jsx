@@ -48,10 +48,13 @@ export function AuthProvider({ children }) {
     setUser(data.user);
   }
 
-  function logout() {
-    localStorage.removeItem("study_ai_token");
-    localStorage.removeItem("study_ai_user");
-    setUser(null);
+  async function logout() {
+    try { await api.post("/auth/logout"); }
+    finally {
+      localStorage.removeItem("study_ai_token");
+      localStorage.removeItem("study_ai_user");
+      setUser(null);
+    }
   }
 
   const value = useMemo(() => ({ user, loading, login, register, logout }), [user, loading]);
