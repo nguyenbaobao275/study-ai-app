@@ -21,6 +21,10 @@ function requestedCount(prompt, fallback) {
 
 function mockResponse(prompt) {
   const lower = prompt.toLowerCase();
+  if (prompt.includes("STUDY_PLAN_REQUEST")) {
+    return Array.from({ length: 7 }, (_, index) => `Ngày ${index + 1}\n- Hoàn thành nhiệm vụ ưu tiên theo deadline.\n- Đọc tài liệu và ôn tập bằng flashcard/quiz.`).join("\n\n")
+      + "\n\nLưu ý\n- Điều chỉnh khối lượng theo thời gian thực tế.\n- Dự phòng thời gian cho nhiệm vụ gấp.\n- Cập nhật tiến độ mỗi ngày.";
+  }
   if (lower.includes("used_source_numbers")) {
     return JSON.stringify({ answer: "Nội dung được trả lời dựa trên các đoạn tài liệu đã truy xuất [Nguồn 1].", used_source_numbers: [1] });
   }

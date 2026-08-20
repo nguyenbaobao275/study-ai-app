@@ -19,3 +19,36 @@ export function buildRagPrompt(question, sources) {
 export function buildSynthesisPrompt(partialSummaries) {
   return `Tổng hợp các bản tóm tắt sau thành một bản tiếng Việt mạch lạc gồm tóm tắt ngắn, ý chính và khái niệm cần nhớ. Không thêm kiến thức ngoài.\n\n${partialSummaries.join("\n\n")}`;
 }
+
+export function buildStudyPlanPrompt({ subjects, tasks, documents, quizSummary, startDate }) {
+  const subjectLines = subjects.length
+    ? subjects.map((subject) => `- ${subject.name}${subject.description ? `: ${subject.description}` : ""}`).join("\n")
+    : "- Chưa có môn học.";
+  const taskLines = tasks.length
+    ? tasks.map((task) => `- ${task.title} | môn: ${task.subjects?.name || "Chưa gán môn"} | hạn: ${task.due_date || "Chưa có"}`).join("\n")
+    : "- Chưa có nhiệm vụ đang chờ.";
+  const documentLines = documents.length
+    ? documents.map((document) => `- ${document.title} | môn: ${document.subjects?.name || "Chưa gán môn"} | chỉ mục: ${document.index_status || "unknown"}`).join("\n")
+    : "- Chưa có tài liệu.";
+
+  return `STUDY_PLAN_REQUEST
+Bạn là trợ lý lập kế hoạch học tập. Hãy tạo kế hoạch 7 ngày bắt đầu từ ${startDate}, bằng tiếng Việt và chỉ dựa trên dữ liệu được cung cấp.
+
+Yêu cầu:
+- Trình bày theo Ngày 1 đến Ngày 7, mỗi ngày có 2-4 việc cụ thể.
+- Ưu tiên nhiệm vụ sắp đến hạn và phân bổ thời gian hợp lý giữa các môn.
+- Xen kẽ đọc tài liệu, ôn flashcard/quiz và thời gian dự phòng.
+- Không bịa ra deadline, môn học hoặc tài liệu không có trong dữ liệu.
+- Kết thúc bằng 3 lưu ý để điều chỉnh kế hoạch.
+
+Môn học:
+${subjectLines}
+
+Nhiệm vụ đang chờ:
+${taskLines}
+
+Tài liệu gần đây:
+${documentLines}
+
+Kết quả quiz: ${quizSummary}`;
+}

@@ -3,6 +3,7 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { assertFound, getOwnedDocument, getOwnedGeneration } from "../services/ownershipService.js";
 import { generateFlashcardVersion, generateQuizVersion, generateSummaryVersion } from "../services/aiGenerationService.js";
 import { answerDocumentQuestion } from "../services/ragService.js";
+import { generateStudyPlan } from "../services/studyPlanService.js";
 
 async function ownedDocument(req) {
   return assertFound(await getOwnedDocument(req.params.documentId, req.user.id), "Không tìm thấy tài liệu.");
@@ -23,6 +24,10 @@ export const generateQuizzes = asyncHandler(async (req, res) => {
 export const askDocument = asyncHandler(async (req, res) => {
   const document = await ownedDocument(req);
   res.status(201).json(await answerDocumentQuestion({ document, userId: req.user.id, question: req.body.question }));
+});
+
+export const createStudyPlan = asyncHandler(async (req, res) => {
+  res.status(201).json(await generateStudyPlan(req.user.id));
 });
 
 export const submitQuizAttempt = asyncHandler(async (req, res) => {

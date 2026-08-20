@@ -5,8 +5,9 @@ import { generateMockEmbedding } from "../src/services/embeddingService.js";
 import { validateQuizzes } from "../src/services/quizService.js";
 import { validSourceNumbers } from "../src/services/ragService.js";
 import { quizCountSchema } from "../src/schemas/validationSchemas.js";
-import { buildQuizPrompt } from "../src/services/aiPromptService.js";
+import { buildQuizPrompt, buildStudyPlanPrompt } from "../src/services/aiPromptService.js";
 import { generateContent, parseJsonFromAI } from "../src/services/geminiService.js";
+import { isValidStudyPlan } from "../src/services/studyPlanService.js";
 
 function cosine(a, b) {
   let dot = 0; let aa = 0; let bb = 0;
@@ -54,5 +55,23 @@ test("mock quiz tạo đúng số câu bổ sung và không lặp offset", async
     const items = parseJsonFromAI(await generateContent(buildQuizPrompt("Nội dung", 3, ["Câu cũ 1", "Câu cũ 2"])), []);
     assert.equal(items.length, 3);
     assert.match(items[0].question, /số 3/);
+  } finally { process.env.GEMINI_USE_MOCK = previous; }
+});
+
+test("mock study plan tạo đủ kế hoạch 7 ngày", async () => {
+  const previous = process.env.GEMINI_USE_MOCK;
+  process.env.GEMINI_USE_MOCK = "true";
+  try {
+    const prompt = buildStudyPlanPrompt({
+      subjects: [{ name: "Cơ sở dữ liệu", description: "Ôn tập SQL" }],
+      tasks: [{ title: "Làm bài tập", due_date: "2026-08-25", subjects: { name: "Cơ sở dữ liệu" } }],
+      documents: [{ title: "Giáo trình SQL", index_status: "completed", subjects: { name: "Cơ sở dữ liệu" } }],
+      quizSummary: "1 lượt, điểm 80%.",
+      startDate: "2026-08-20"
+    });
+    const content = await generateContent(prompt);
+    for (let day = 1; day <= 7; day += 1) assert.match(content, new RegExp(`Ngày ${day}`));
+    assert.equal(isValidStudyPlan(content), true);
+    assert.equal(isValidStudyPlan("Ngày 1: chỉ có một ngày"), false);
   } finally { process.env.GEMINI_USE_MOCK = previous; }
 });

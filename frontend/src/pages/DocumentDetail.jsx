@@ -78,7 +78,7 @@ export default function DocumentDetail() {
       <label className="quiz-count">Số câu quiz<select value={quizCount} onChange={(e) => setQuizCount(Number(e.target.value))}>{[5, 10, 15, 20].map((count) => <option key={count}>{count}</option>)}</select></label>
       <button className="btn btn-secondary" disabled={!!loadingAction} onClick={() => runAI("quiz")}>Tạo quiz</button><button className="btn btn-ghost" disabled={!latestSummary || !!loadingAction} onClick={exportSummary}>Xuất PDF</button></div>
 
-    <div className="panel"><h2>Chat hỏi đáp theo tài liệu</h2><form className="chat-form" onSubmit={askDocument}><input maxLength="1000" placeholder="Hỏi AI về nội dung tài liệu..." value={question} onChange={(e) => setQuestion(e.target.value)} /><button className="btn btn-primary" disabled={loadingAction === "chat"}>Gửi</button></form>
+    <div className="panel"><h2>Chat hỏi đáp theo tài liệu</h2><form className="chat-form" onSubmit={askDocument}><input aria-label="Câu hỏi về tài liệu" maxLength="1000" placeholder="Hỏi AI về nội dung tài liệu..." value={question} onChange={(e) => setQuestion(e.target.value)} /><button className="btn btn-primary" disabled={loadingAction === "chat"}>Gửi</button></form>
       <div className="chat-list">{document.chats?.map((chat) => <div className="chat-item" key={chat.id}><strong>{chat.question}</strong><p>{chat.answer}</p><CitationList citations={chat.citations} /></div>)}</div></div>
 
     <div className="panel"><div className="split-row"><h2>Bản tóm tắt đang dùng</h2></div>{latestSummary ? <pre className="summary-box">{latestSummary.content}</pre> : <p className="muted">Chưa có bản tóm tắt.</p>}</div>

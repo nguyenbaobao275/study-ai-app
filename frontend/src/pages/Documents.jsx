@@ -74,17 +74,18 @@ export default function Documents() {
       <div className="panel">
         <form className="form-grid" onSubmit={handleUpload}>
           <input
+            aria-label="Tên tài liệu"
             placeholder="Tên tài liệu"
             value={form.title}
             onChange={(e) => setForm({ ...form, title: e.target.value })}
           />
-          <select value={form.subject_id} onChange={(e) => setForm({ ...form, subject_id: e.target.value })}>
+          <select aria-label="Môn học của tài liệu" value={form.subject_id} onChange={(e) => setForm({ ...form, subject_id: e.target.value })}>
             <option value="">Chọn môn học</option>
             {subjects.map((subject) => (
               <option value={subject.id} key={subject.id}>{subject.name}</option>
             ))}
           </select>
-          <input type="file" accept=".txt,.md,.pdf,.docx" onChange={(e) => setForm({ ...form, file: e.target.files[0] })} />
+          <input aria-label="Chọn file tài liệu" type="file" accept=".txt,.md,.pdf,.docx" onChange={(e) => setForm({ ...form, file: e.target.files[0] })} />
           <button className="btn btn-primary" disabled={loading}>{loading ? "Đang upload..." : "Upload tài liệu"}</button>
         </form>
       </div>

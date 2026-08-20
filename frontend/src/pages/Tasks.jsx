@@ -59,22 +59,25 @@ export default function Tasks() {
       <div className="panel">
         <form className="form-grid" onSubmit={handleSubmit}>
           <input
+            aria-label="Tên nhiệm vụ"
             placeholder="Tên nhiệm vụ"
             value={form.title}
             onChange={(e) => setForm({ ...form, title: e.target.value })}
           />
-          <select value={form.subject_id} onChange={(e) => setForm({ ...form, subject_id: e.target.value })}>
+          <select aria-label="Môn học của nhiệm vụ" value={form.subject_id} onChange={(e) => setForm({ ...form, subject_id: e.target.value })}>
             <option value="">Chọn môn học</option>
             {subjects.map((subject) => (
               <option value={subject.id} key={subject.id}>{subject.name}</option>
             ))}
           </select>
           <input
+            aria-label="Hạn hoàn thành"
             type="date"
             value={form.due_date}
             onChange={(e) => setForm({ ...form, due_date: e.target.value })}
           />
           <input
+            aria-label="Mô tả nhiệm vụ"
             placeholder="Mô tả"
             value={form.description}
             onChange={(e) => setForm({ ...form, description: e.target.value })}

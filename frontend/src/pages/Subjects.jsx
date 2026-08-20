@@ -60,11 +60,13 @@ export default function Subjects() {
       <div className="panel">
         <form className="form-grid" onSubmit={handleSubmit}>
           <input
+            aria-label="Tên môn học"
             placeholder="Tên môn học, ví dụ: Công nghệ phần mềm"
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
           />
           <input
+            aria-label="Mô tả môn học"
             placeholder="Mô tả ngắn"
             value={form.description}
             onChange={(e) => setForm({ ...form, description: e.target.value })}
