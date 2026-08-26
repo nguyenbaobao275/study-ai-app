@@ -1,4 +1,5 @@
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 const icons = {
@@ -15,9 +16,19 @@ function NavIcon({ name }) {
   return <svg className="nav-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{icons[name]}</svg>;
 }
 
+function MenuIcon({ close = false }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      {close ? <><path d="M18 6 6 18" /><path d="m6 6 12 12" /></> : <><path d="M4 7h16" /><path d="M4 12h16" /><path d="M4 17h16" /></>}
+    </svg>
+  );
+}
+
 export default function Layout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [menuOpen, setMenuOpen] = useState(false);
   const menu = [
     { to: "/", label: "Dashboard", icon: "dashboard" },
     { to: "/subjects", label: "Môn học", icon: "subjects" },
@@ -27,6 +38,26 @@ export default function Layout() {
     { to: "/search", label: "Tìm kiếm", icon: "search" },
     ...(user?.role === "admin" ? [{ to: "/admin", label: "Admin", icon: "admin" }] : [])
   ];
+  const mobileMenu = menu.filter((item) => ["/", "/tasks", "/documents", "/search"].includes(item.to));
+
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+
+    function closeOnEscape(event) {
+      if (event.key === "Escape") setMenuOpen(false);
+    }
+
+    document.body.classList.add("mobile-menu-open");
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.classList.remove("mobile-menu-open");
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [menuOpen]);
 
   async function handleLogout() {
     try { await logout(); } finally { navigate("/login"); }
@@ -35,13 +66,18 @@ export default function Layout() {
   return (
     <div className="app-shell">
       <a className="skip-link" href="#main-content">Bỏ qua điều hướng</a>
-      <aside className="sidebar">
-        <div className="brand">
-          <div className="brand-icon">AI</div>
-          <div>
-            <h1>StudyAI</h1>
-            <p>Trợ lý học tập cá nhân</p>
+      <aside className={`sidebar ${menuOpen ? "is-open" : ""}`} id="mobile-navigation" aria-label="Thanh điều hướng">
+        <div className="sidebar-header">
+          <div className="brand">
+            <div className="brand-icon">AI</div>
+            <div>
+              <h1>StudyAI</h1>
+              <p>Trợ lý học tập cá nhân</p>
+            </div>
           </div>
+          <button className="icon-btn nav-close" type="button" onClick={() => setMenuOpen(false)} aria-label="Đóng menu">
+            <MenuIcon close />
+          </button>
         </div>
 
         <nav className="nav-menu" aria-label="Điều hướng chính">
@@ -59,9 +95,14 @@ export default function Layout() {
         </div>
       </aside>
 
+      <button className={`nav-scrim ${menuOpen ? "is-visible" : ""}`} type="button" onClick={() => setMenuOpen(false)} aria-label="Đóng menu" tabIndex={menuOpen ? 0 : -1} />
+
       <main className="main" id="main-content">
         <header className="topbar">
-          <div>
+          <button className="icon-btn menu-toggle" type="button" onClick={() => setMenuOpen(true)} aria-controls="mobile-navigation" aria-expanded={menuOpen} aria-label="Mở menu">
+            <MenuIcon />
+          </button>
+          <div className="topbar-copy">
             <h2>Xin chào, {user?.full_name}</h2>
             <p>Hôm nay mình xử lý gọn việc học nhé.</p>
           </div>
@@ -70,7 +111,7 @@ export default function Layout() {
               <span>{user?.full_name?.trim()?.charAt(0)?.toUpperCase() || "U"}</span>
               <div><strong>{user?.full_name}</strong><small>{user?.role === "admin" ? "Quản trị viên" : "Học viên"}</small></div>
             </div>
-            <button className="btn btn-ghost" onClick={handleLogout}>Đăng xuất</button>
+            <button className="btn btn-ghost logout-btn" onClick={handleLogout}><span className="logout-full">Đăng xuất</span><span className="logout-short">Thoát</span></button>
           </div>
         </header>
 
@@ -78,6 +119,19 @@ export default function Layout() {
           <Outlet />
         </section>
       </main>
+
+      <nav className="mobile-bottom-nav" aria-label="Điều hướng nhanh">
+        {mobileMenu.map((item) => (
+          <NavLink key={item.to} to={item.to} end={item.to === "/"}>
+            <NavIcon name={item.icon} />
+            <span>{item.label}</span>
+          </NavLink>
+        ))}
+        <button type="button" onClick={() => setMenuOpen(true)} aria-label="Mở tất cả chức năng">
+          <MenuIcon />
+          <span>Thêm</span>
+        </button>
+      </nav>
     </div>
   );
 }

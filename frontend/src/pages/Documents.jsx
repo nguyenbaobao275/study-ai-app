@@ -85,7 +85,11 @@ export default function Documents() {
               <option value={subject.id} key={subject.id}>{subject.name}</option>
             ))}
           </select>
-          <input aria-label="Chọn file tài liệu" type="file" accept=".txt,.md,.pdf,.docx" onChange={(e) => setForm({ ...form, file: e.target.files[0] })} />
+          <div className="file-picker">
+            <input id="document-file" type="file" accept=".txt,.md,.pdf,.docx" onChange={(e) => setForm({ ...form, file: e.target.files[0] || null })} />
+            <label className="file-picker-button" htmlFor="document-file">Chọn file</label>
+            <span className="file-picker-name">{form.file?.name || "Chưa chọn file"}</span>
+          </div>
           <button className="btn btn-primary" disabled={loading}>{loading ? "Đang upload..." : "Upload tài liệu"}</button>
         </form>
       </div>

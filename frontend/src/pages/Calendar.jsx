@@ -31,6 +31,14 @@ export default function Calendar() {
     return cells;
   }, [cursor]);
 
+  const monthTasks = useMemo(() => tasks
+    .filter((task) => {
+      if (!task.due_date) return false;
+      const [year, month] = task.due_date.split("-").map(Number);
+      return year === cursor.getFullYear() && month === cursor.getMonth() + 1;
+    })
+    .sort((a, b) => a.due_date.localeCompare(b.due_date)), [tasks, cursor]);
+
   function shiftMonth(step) {
     setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + step, 1));
   }
@@ -52,25 +60,42 @@ export default function Calendar() {
 
       <div className="panel">
         <h2>{cursor.toLocaleDateString("vi-VN", { month: "long", year: "numeric" })}</h2>
-        <div className="calendar-grid calendar-head">
-          {["CN", "T2", "T3", "T4", "T5", "T6", "T7"].map((label) => <strong key={label}>{label}</strong>)}
+        <div className="calendar-desktop">
+          <div className="calendar-grid calendar-head">
+            {["CN", "T2", "T3", "T4", "T5", "T6", "T7"].map((label) => <strong key={label}>{label}</strong>)}
+          </div>
+          <div className="calendar-grid">
+            {days.map((date, index) => {
+              const dayTasks = date ? tasks.filter((task) => sameDate(date, task.due_date)) : [];
+              return (
+                <div className={`calendar-cell ${!date ? "muted-cell" : ""}`} key={index}>
+                  {date && <b>{date.getDate()}</b>}
+                  {dayTasks.map((task) => (
+                    <div className={`calendar-task ${task.status === "completed" ? "done-task" : ""}`} key={task.id}>
+                      {task.title}
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
         </div>
-        <div className="calendar-grid">
-          {days.map((date, index) => {
-            const dayTasks = date ? tasks.filter((task) => sameDate(date, task.due_date)) : [];
+        <div className="mobile-agenda">
+          {monthTasks.length ? monthTasks.map((task) => {
+            const dueDate = new Date(`${task.due_date}T00:00:00`);
             return (
-              <div className={`calendar-cell ${!date ? "muted-cell" : ""}`} key={index}>
-                {date && <b>{date.getDate()}</b>}
-                {dayTasks.map((task) => (
-                  <div className={`calendar-task ${task.status === "completed" ? "done-task" : ""}`} key={task.id}>
-                    {task.title}
-                  </div>
-                ))}
+              <div className="agenda-item" key={task.id}>
+                <div className="agenda-date"><strong>{dueDate.getDate()}</strong><span>Tháng {dueDate.getMonth() + 1}</span></div>
+                <div className="agenda-copy">
+                  <strong className={task.status === "completed" ? "done" : ""}>{task.title}</strong>
+                  <span>{task.subjects?.name || "Không gắn môn"}</span>
+                </div>
+                <span className={`badge ${task.status === "completed" ? "success" : ""}`}>{task.status === "completed" ? "Đã xong" : "Sắp tới"}</span>
               </div>
             );
-          })}
+          }) : <EmptyState title="Tháng này chưa có deadline" text="Các nhiệm vụ có hạn hoàn thành sẽ xuất hiện tại đây." />}
         </div>
-        {!tasks.length && <EmptyState title="Chưa có nhiệm vụ" text="Thêm deadline ở trang Nhiệm vụ để lịch có dữ liệu." />}
+        {!tasks.length && <div className="calendar-empty-desktop"><EmptyState title="Chưa có nhiệm vụ" text="Thêm deadline ở trang Nhiệm vụ để lịch có dữ liệu." /></div>}
       </div>
     </div>
   );
