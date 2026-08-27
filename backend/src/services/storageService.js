@@ -6,8 +6,18 @@ import { supabase } from "../config/supabase.js";
 export const STORAGE_BUCKET = process.env.SUPABASE_STORAGE_BUCKET || "study-documents";
 
 export function safeFileName(name) {
-  const cleaned = sanitize(path.basename(String(name || "document"))).replace(/\s+/g, "-");
-  return cleaned || "document";
+  const ext = path.extname(String(name || ""));
+  const base = path.basename(String(name || ""), ext);
+  const asciiBase = base
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D")
+    .replace(/[^a-zA-Z0-9_-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+  const asciiExt = ext.replace(/[^a-zA-Z0-9.]/g, "").toLowerCase();
+  return (asciiBase || "document") + asciiExt;
 }
 
 export function storagePathFor(userId, documentId, fileName) {
@@ -20,7 +30,12 @@ export async function uploadDocumentBuffer(storagePath, buffer, contentType) {
     upsert: false,
     cacheControl: "3600"
   });
-  if (error) throw new Error("Không thể lưu file vào kho tài liệu riêng tư.");
+  if (error) {
+    console.error("Storage upload error:", error);
+    const err = new Error("Không thể lưu file vào kho tài liệu riêng tư.");
+    err.publicMessage = "Không thể lưu file vào kho tài liệu riêng tư.";
+    throw err;
+  }
   return storagePath;
 }
 
