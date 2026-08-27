@@ -59,7 +59,17 @@ export default function DocumentDetail() {
       const res = await api.get(`/documents/${id}/export/summary`, { responseType: "blob" });
       const url = URL.createObjectURL(res.data); const anchor = window.document.createElement("a");
       anchor.href = url; anchor.download = `${document.title || "summary"}-summary.pdf`; anchor.click(); URL.revokeObjectURL(url);
-    } catch (err) { setError(err.message); } finally { setLoadingAction(""); }
+    } catch (err) {
+      if (err.response?.data instanceof Blob) {
+        try {
+          const text = await err.response.data.text();
+          const parsed = JSON.parse(text);
+          setError(parsed.message || err.message);
+          return;
+        } catch {}
+      }
+      setError(err.message);
+    } finally { setLoadingAction(""); }
   }
 
   const latestSummary = document?.summaries?.[0];

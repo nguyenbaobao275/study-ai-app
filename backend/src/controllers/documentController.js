@@ -6,7 +6,7 @@ import { supabase } from "../config/supabase.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { extractTextFromBuffer } from "../services/documentTextExtractor.js";
 import { assertFound, assertOwnedSubject, getOwnedDocument } from "../services/ownershipService.js";
-import { createSignedDownloadUrl, removeLegacyFile, removeStoredDocument, storagePathFor, uploadDocumentBuffer } from "../services/storageService.js";
+import { createSignedDownloadUrl, removeLegacyFile, removeStoredDocument, safeFileName, storagePathFor, uploadDocumentBuffer } from "../services/storageService.js";
 import { validateDocumentFile } from "../services/fileValidationService.js";
 import { indexDocument } from "../services/indexingService.js";
 
@@ -99,9 +99,10 @@ export const exportSummaryPdf = asyncHandler(async (req, res) => {
   if (error) throw error;
   if (!summary) return res.status(404).json({ message: "Không tìm thấy bản tóm tắt." });
   const pdf = new PDFDocument({ margin: 50, size: "A4" });
-  const safeName = sanitize(document.title).replace(/\s+/g, "-") || "summary";
+  const asciiName = safeFileName(document.title) || "summary";
+  const encodedTitle = encodeURIComponent(`${document.title || "summary"}-summary.pdf`);
   res.setHeader("Content-Type", "application/pdf");
-  res.setHeader("Content-Disposition", `attachment; filename="${safeName}-summary.pdf"`);
+  res.setHeader("Content-Disposition", `attachment; filename="${asciiName}-summary.pdf"; filename*=UTF-8''${encodedTitle}`);
   pdf.pipe(res);
   const fontPath = String(process.env.PDF_FONT_PATH || "").trim();
   if (fontPath && fs.existsSync(fontPath)) pdf.font(fontPath);
